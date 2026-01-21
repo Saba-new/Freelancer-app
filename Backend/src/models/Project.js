@@ -30,6 +30,40 @@ const projectSchema = new mongoose.Schema(
       default: null,
     },
 
+    // ✅ NEW: REQUIREMENT TRACKING (AI + VALIDATION BASE)
+    requirements: [
+      {
+        text: {
+          type: String,
+          required: true,
+        },
+        category: {
+          type: String,
+          enum: ["frontend", "backend", "database", "authentication", "api", "deployment", "testing", "other"],
+          default: "other",
+        },
+        priority: {
+          type: String,
+          enum: ["high", "medium", "low"],
+          default: "medium",
+        },
+        status: {
+          type: String,
+          enum: ["pending", "in-progress", "completed"],
+          default: "pending",
+        },
+        verified: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    ],
+
+    // PROJECT DESCRIPTION
+    description: {
+      type: String,
+    },
+
     // FREELANCER WORK
     submissionUrl: {
       type: String,
@@ -54,6 +88,24 @@ const projectSchema = new mongoose.Schema(
 
     submittedAt: Date,
     approvedAt: Date,
+    validationReport: [
+      {
+        requirement: String,
+        matched: Boolean,
+        confidence: Number,
+        evidence: String,
+      },
+    ],
+    
+    // AI VALIDATION FEEDBACK
+    overallScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    aiFeedback: String,
+    aiMissingItems: [String],
+    aiStrengths: [String],
   },
   { timestamps: true }
 );
