@@ -10,6 +10,8 @@ export default function MilestoneManager({ project, onUpdate }) {
 
   const hasMilestones = project.milestones && project.milestones.length > 0;
 
+  console.log('MilestoneManager - project.milestones:', project.milestones?.length || 0);
+
   const toggleMilestone = (milestoneId) => {
     setExpandedMilestones(prev => ({
       ...prev,

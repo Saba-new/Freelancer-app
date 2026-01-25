@@ -27,6 +27,7 @@ export default function ClientDashboard() {
       if (previewProject) {
         const updatedProject = res.data.projects.find(p => p._id === previewProject._id);
         if (updatedProject) {
+          console.log('Updating preview project with milestones:', updatedProject.milestones?.length || 0);
           setPreviewProject(updatedProject);
         }
       }
@@ -70,6 +71,19 @@ export default function ClientDashboard() {
     await api.delete(`/projects/${id}`);
     setShowPreview(false);
     fetchDashboard();
+  };
+
+  /* ================= OPEN PROJECT PREVIEW ================= */
+  const openProjectPreview = async (projectId) => {
+    try {
+      // Fetch fresh project data from server
+      const res = await api.get(`/projects/${projectId}`);
+      setPreviewProject(res.data);
+      setShowPreview(true);
+    } catch (err) {
+      console.error("Failed to load project:", err);
+      alert("Failed to load project details");
+    }
   };
 
   /* ================= RELEASE PAYMENT ================= */
@@ -153,10 +167,7 @@ export default function ClientDashboard() {
                   </Td>
                   <Td>
                     <button
-                      onClick={() => {
-                        setPreviewProject(p);
-                        setShowPreview(true);
-                      }}
+                      onClick={() => openProjectPreview(p._id)}
                       className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md text-sm"
                     >
                       View
@@ -179,7 +190,7 @@ export default function ClientDashboard() {
 
       {/* ================= NEW PROJECT MODAL ================= */}
       {showNewProject && (
-        <Modal>
+        <Modal onClose={() => setShowNewProject(false)}>
           <h3 className="text-xl font-bold mb-4">Create New Project</h3>
 
           <input
@@ -216,7 +227,7 @@ export default function ClientDashboard() {
 
       {/* ================= PREVIEW MODAL ================= */}
       {showPreview && previewProject && (
-        <Modal wide>
+        <Modal wide onClose={() => setShowPreview(false)}>
           <h3 className="text-xl font-bold mb-2">Project Preview</h3>
 
           <p><b>Title:</b> {previewProject.title}</p>
@@ -435,13 +446,17 @@ function Td({ children }) {
   return <td className="p-4">{children}</td>;
 }
 
-function Modal({ children, wide }) {
+function Modal({ children, wide, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div 
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
       <div
         className={`bg-gray-900 p-6 rounded-xl max-h-[90vh] overflow-y-auto ${
           wide ? "max-w-4xl w-full" : "max-w-md w-full"
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         {children}
       </div>

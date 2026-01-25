@@ -260,6 +260,7 @@ router.get("/:id", protect, async (req, res) => {
       return res.status(403).json({ message: "Not authorized" });
     }
 
+    console.log(`📊 GET project ${project._id}: ${project.milestones?.length || 0} milestones`);
     res.json(project);
   } catch (err) {
     console.error("Get project error:", err);
