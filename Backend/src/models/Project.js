@@ -97,6 +97,43 @@ const projectSchema = new mongoose.Schema(
       },
     ],
     
+    // MILESTONES FOR PHASED PAYMENTS
+    milestones: [
+      {
+        title: {
+          type: String,
+          required: true,
+        },
+        description: String,
+        amount: {
+          type: Number,
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ["pending", "in-progress", "submitted", "completed", "paid"],
+          default: "pending",
+        },
+        submissionUrl: String,
+        submissionDescription: String,
+        submittedAt: Date,
+        completedAt: Date,
+        paidAt: Date,
+        validationReport: [
+          {
+            requirement: String,
+            matched: Boolean,
+            confidence: Number,
+            evidence: String,
+          },
+        ],
+        overallScore: Number,
+        aiFeedback: String,
+        aiMissingItems: [String],
+        aiStrengths: [String],
+      },
+    ],
+
     // AI VALIDATION FEEDBACK
     overallScore: {
       type: Number,

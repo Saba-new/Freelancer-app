@@ -47,6 +47,13 @@ router.post("/", protect, async (req, res) => {
 // CLIENT DASHBOARD
 router.get("/client-dashboard", protect, async (req, res) => {
   const projects = await Project.find({ client: req.user.id });
+  
+  // Debug: Log milestone count for each project
+  projects.forEach(p => {
+    if (p.milestones && p.milestones.length > 0) {
+      console.log(`Project ${p.title} has ${p.milestones.length} milestones`);
+    }
+  });
 
   res.json({
     active: projects.filter(p => p.status === "active").length,
@@ -257,6 +264,157 @@ router.get("/:id", protect, async (req, res) => {
   } catch (err) {
     console.error("Get project error:", err);
     res.status(500).json({ message: "Failed to fetch project" });
+  }
+});
+
+/* ================= MILESTONE MANAGEMENT ================= */
+
+// ADD MILESTONES TO PROJECT (Client only)
+router.post("/:id/milestones", protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (project.client.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const { milestones } = req.body; // Array of {title, description, amount}
+    
+    if (!milestones || !Array.isArray(milestones)) {
+      return res.status(400).json({ message: "Milestones array required" });
+    }
+
+    // Validate total milestone amount equals project budget
+    const totalMilestoneAmount = milestones.reduce((sum, m) => sum + Number(m.amount), 0);
+    if (Math.abs(totalMilestoneAmount - project.budget) > 0.01) {
+      return res.status(400).json({ 
+        message: `Total milestone amount (₹${totalMilestoneAmount}) must equal project budget (₹${project.budget})` 
+      });
+    }
+
+    project.milestones = milestones.map(m => ({
+      title: m.title,
+      description: m.description || "",
+      amount: m.amount,
+      status: "pending",
+    }));
+
+    await project.save();
+    console.log(`✓ Milestones saved for project ${project._id}:`, project.milestones.length);
+    res.json(project);
+  } catch (err) {
+    console.error("Add milestones error:", err);
+    res.status(500).json({ message: "Failed to add milestones" });
+  }
+});
+
+// SUBMIT MILESTONE (Freelancer only)
+router.put("/:projectId/milestones/:milestoneId/submit", protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (project.freelancer.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const milestone = project.milestones.id(req.params.milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ message: "Milestone not found" });
+    }
+
+    const { submissionUrl, submissionDescription } = req.body;
+
+    // AI Validation for milestone
+    const validation = await validateSubmission(
+      project.requirements,
+      submissionDescription || submissionUrl || "",
+      submissionUrl || ""
+    );
+
+    milestone.submissionUrl = submissionUrl;
+    milestone.submissionDescription = submissionDescription;
+    milestone.status = "submitted";
+    milestone.submittedAt = new Date();
+    milestone.validationReport = validation.validationReport || [];
+    milestone.overallScore = validation.overallScore || 0;
+    milestone.aiFeedback = validation.feedback || "";
+    milestone.aiMissingItems = validation.missingItems || [];
+    milestone.aiStrengths = validation.strengths || [];
+
+    await project.save();
+    res.json({ project, validation });
+  } catch (err) {
+    console.error("Submit milestone error:", err);
+    res.status(500).json({ message: "Failed to submit milestone" });
+  }
+});
+
+// APPROVE & RELEASE PAYMENT FOR MILESTONE (Client only)
+router.put("/:projectId/milestones/:milestoneId/approve", protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (project.client.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const milestone = project.milestones.id(req.params.milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ message: "Milestone not found" });
+    }
+
+    if (milestone.status !== "submitted") {
+      return res.status(400).json({ message: "Milestone must be submitted before approval" });
+    }
+
+    milestone.status = "paid";
+    milestone.completedAt = new Date();
+    milestone.paidAt = new Date();
+
+    // Check if all milestones are completed
+    const allMilestonesCompleted = project.milestones.every(m => m.status === "paid");
+    if (allMilestonesCompleted) {
+      project.status = "completed";
+      project.paymentReleased = true;
+    }
+
+    await project.save();
+    res.json(project);
+  } catch (err) {
+    console.error("Approve milestone error:", err);
+    res.status(500).json({ message: "Failed to approve milestone" });
+  }
+});
+
+// UPDATE MILESTONE STATUS (Freelancer - mark as in-progress)
+router.patch("/:projectId/milestones/:milestoneId/status", protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (project.freelancer.toString() !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const milestone = project.milestones.id(req.params.milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ message: "Milestone not found" });
+    }
+
+    const { status } = req.body;
+    if (["pending", "in-progress"].includes(status)) {
+      milestone.status = status;
+      await project.save();
+      res.json(project);
+    } else {
+      res.status(400).json({ message: "Invalid status" });
+    }
+  } catch (err) {
+    console.error("Update milestone status error:", err);
+    res.status(500).json({ message: "Failed to update milestone" });
   }
 });
 

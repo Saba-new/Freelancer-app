@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import api from "../services/api";
 import ChatBox from "../components/ChatBox";
+import FreelancerMilestoneView from "../components/FreelancerMilestoneView";
 
 export default function FreelancerDashboard() {
   const [projects, setProjects] = useState([]);
@@ -328,6 +329,9 @@ export default function FreelancerDashboard() {
                   Upload Files
                 </button>
               </div>
+
+              {/* MILESTONE VIEW */}
+              <FreelancerMilestoneView project={p} onUpdate={loadProjects} />
 
               {/* PAYMENT CONFIRMATION */}
               {p.paymentReleased && (

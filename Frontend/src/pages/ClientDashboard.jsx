@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import api from "../services/api";
 import ChatBox from "../components/ChatBox";
+import MilestoneManager from "../components/MilestoneManager";
 
 export default function ClientDashboard() {
   const [projects, setProjects] = useState([]);
@@ -21,6 +22,14 @@ export default function ClientDashboard() {
     try {
       const res = await api.get("/projects/client-dashboard");
       setProjects(res.data.projects || []);
+      
+      // Update preview project if modal is open
+      if (previewProject) {
+        const updatedProject = res.data.projects.find(p => p._id === previewProject._id);
+        if (updatedProject) {
+          setPreviewProject(updatedProject);
+        }
+      }
     } catch (err) {
       console.error("Dashboard error", err);
     } finally {
@@ -249,6 +258,9 @@ export default function ClientDashboard() {
             </div>
           )}
 
+          {/* MILESTONE MANAGER */}
+          <MilestoneManager project={previewProject} onUpdate={fetchDashboard} />
+
           {/* SUBMITTED WORK LINK */}
           {previewProject.submissionUrl && (
             <a
@@ -360,22 +372,26 @@ export default function ClientDashboard() {
           {/* CHAT */}
           <ChatBox projectId={previewProject._id} />
 
-          {/* APPROVE & RELEASE PAYMENT */}
-          {previewProject.status === "submitted" &&
-            !previewProject.paymentReleased && (
-              <button
-                onClick={() => releasePayment(previewProject._id)}
-                className="mt-4 w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold transition"
-              >
-                Approve & Release Payment
-              </button>
-            )}
+          {/* OLD APPROVE & RELEASE PAYMENT - Only show if no milestones */}
+          {!previewProject.milestones || previewProject.milestones.length === 0 ? (
+            <>
+              {previewProject.status === "submitted" &&
+                !previewProject.paymentReleased && (
+                  <button
+                    onClick={() => releasePayment(previewProject._id)}
+                    className="mt-4 w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded font-semibold transition"
+                  >
+                    Approve & Release Payment
+                  </button>
+                )}
 
-          {previewProject.paymentReleased && (
-            <p className="mt-4 text-green-400 font-semibold">
-              Payment Released ✔
-            </p>
-          )}
+              {previewProject.paymentReleased && (
+                <p className="mt-4 text-green-400 font-semibold">
+                  Payment Released ✔
+                </p>
+              )}
+            </>
+          ) : null}
 
           <div className="flex justify-end mt-4">
             <Btn gray onClick={() => setShowPreview(false)}>Close</Btn>
@@ -421,10 +437,10 @@ function Td({ children }) {
 
 function Modal({ children, wide }) {
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div
-        className={`bg-gray-900 p-6 rounded-xl ${
-          wide ? "max-w-xl w-full" : "max-w-md w-full"
+        className={`bg-gray-900 p-6 rounded-xl max-h-[90vh] overflow-y-auto ${
+          wide ? "max-w-4xl w-full" : "max-w-md w-full"
         }`}
       >
         {children}

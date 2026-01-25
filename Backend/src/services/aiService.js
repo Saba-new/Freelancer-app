@@ -1,8 +1,18 @@
 import OpenAI from "openai";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Verify API key is loaded
+if (!process.env.OPENAI_API_KEY) {
+  console.warn("⚠️  WARNING: OPENAI_API_KEY is not set in environment variables!");
+} else {
+  console.log("✓ OpenAI API key loaded successfully");
+}
 
 /**
  * Extract structured requirements from project description using AI
@@ -163,6 +173,10 @@ Rules:
     return validation;
   } catch (error) {
     console.error("AI Validation Error:", error.message);
+    console.error("Full error:", error);
+    if (error.response) {
+      console.error("API Response:", error.response.data);
+    }
     return fallbackValidation(requirements);
   }
 }
