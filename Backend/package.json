@@ -4,7 +4,11 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "clean:users": "node scripts/clean-duplicate-users.js",
+    "reset:test-passwords": "node scripts/reset-test-passwords.js",
+    "ml:service": "python ml-service/app.py",
+    "ml:train": "python ml-service/train.py"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

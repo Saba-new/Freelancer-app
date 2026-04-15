@@ -11,11 +11,22 @@ dotenv.config();
 
 const app = express();
 
+const allowedOrigins = [
+  "https://your-frontend.onrender.com",
+];
+
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://your-frontend.onrender.com"
-  ],
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+
+    const isLocalhost = /^http:\/\/localhost:\d+$/.test(origin) || /^http:\/\/127\.0\.0\.1:\d+$/.test(origin);
+
+    if (isLocalhost || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
   credentials: true,
 }));
 

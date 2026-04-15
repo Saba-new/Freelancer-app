@@ -6,6 +6,8 @@ import upload from "../middleware/uploadMiddleware.js";
 import extractRequirements from "../utils/requirementExtractor.js";
 import validateSubmission from "../utils/validateSubmission.js";
 import { generateProgressSuggestions } from "../services/aiService.js";
+import { buildProjectIntelligence } from "../services/projectIntelligence.js";
+import { getProjectMlIntelligence } from "../services/mlClient.js";
 
 const router = express.Router();
 
@@ -134,6 +136,75 @@ router.patch(
   }
 );
 
+// ADD NEW REQUIREMENT (CLIENT ONLY)
+router.post(
+  "/:projectId/requirements",
+  protect,
+  async (req, res) => {
+    try {
+      const project = await Project.findById(req.params.projectId);
+
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Only client can add requirements
+      if (project.client.toString() !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const { text, category, priority } = req.body;
+
+      project.requirements.push({
+        text: text || "New requirement",
+        category: category || "other",
+        priority: priority || "medium",
+        status: "pending",
+        verified: false,
+      });
+
+      await project.save();
+      res.json(project);
+    } catch (err) {
+      console.error("Add requirement error:", err);
+      res.status(500).json({ message: "Failed to add requirement" });
+    }
+  }
+);
+
+// DELETE REQUIREMENT (CLIENT ONLY)
+router.delete(
+  "/:projectId/requirements/:requirementId",
+  protect,
+  async (req, res) => {
+    try {
+      const project = await Project.findById(req.params.projectId);
+
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Only client can delete requirements
+      if (project.client.toString() !== req.user.id) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const requirement = project.requirements.id(req.params.requirementId);
+      if (!requirement) {
+        return res.status(404).json({ message: "Requirement not found" });
+      }
+
+      requirement.deleteOne();
+      await project.save();
+
+      res.json({ message: "Requirement deleted", project });
+    } catch (err) {
+      console.error("Delete requirement error:", err);
+      res.status(500).json({ message: "Failed to delete requirement" });
+    }
+  }
+);
+
 // SUBMIT WORK (LINK + AI VALIDATION)
 router.put("/:id/submit", protect, async (req, res) => {
   try {
@@ -160,6 +231,22 @@ router.put("/:id/submit", protect, async (req, res) => {
     project.progress = validation.overallScore || 100;
     project.status = "submitted";
     project.submittedAt = new Date();
+
+    // 🔥 Auto-update requirement statuses based on AI validation
+    if (validation.validationReport && validation.validationReport.length > 0) {
+      validation.validationReport.forEach((validationItem, index) => {
+        if (project.requirements[index]) {
+          // Mark as completed if matched with high confidence (>50%)
+          if (validationItem.matched && validationItem.confidence > 50) {
+            project.requirements[index].status = "completed";
+            project.requirements[index].verified = true;
+          } else if (validationItem.matched) {
+            // Mark as in-progress if matched but low confidence
+            project.requirements[index].status = "in-progress";
+          }
+        }
+      });
+    }
 
     await project.save();
     res.json({ 
@@ -238,6 +325,39 @@ router.get("/:id/progress-suggestions", protect, async (req, res) => {
   } catch (err) {
     console.error("Progress suggestion error:", err);
     res.status(500).json({ message: "Failed to generate suggestions" });
+  }
+});
+
+// GET PROJECT INTELLIGENCE SNAPSHOT
+router.get("/:id/intelligence", protect, async (req, res) => {
+  try {
+    const project = await Project.findById(req.params.id);
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const isClient = project.client.toString() === req.user.id;
+    const isFreelancer = project.freelancer && project.freelancer.toString() === req.user.id;
+
+    if (!isClient && !isFreelancer) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const mlIntelligence = await getProjectMlIntelligence(project);
+    if (mlIntelligence) {
+      return res.json({
+        ...mlIntelligence,
+        stage: project.status,
+        source: "ml",
+      });
+    }
+
+    const intelligence = buildProjectIntelligence(project);
+    res.json({ ...intelligence, source: "heuristic" });
+  } catch (err) {
+    console.error("Project intelligence error:", err);
+    res.status(500).json({ message: "Failed to generate project intelligence" });
   }
 });
 

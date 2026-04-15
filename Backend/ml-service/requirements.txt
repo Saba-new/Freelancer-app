@@ -1,0 +1,7 @@
+fastapi==0.115.4
+uvicorn==0.32.0
+scikit-learn==1.5.2
+numpy==2.1.2
+pymongo==4.10.1
+python-dotenv==1.0.1
+joblib==1.4.2

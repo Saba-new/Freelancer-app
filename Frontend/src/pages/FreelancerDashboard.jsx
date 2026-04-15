@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar";
 import api from "../services/api";
 import ChatBox from "../components/ChatBox";
 import FreelancerMilestoneView from "../components/FreelancerMilestoneView";
+import ProjectIntelligenceCard from "../components/ProjectIntelligenceCard";
 
 export default function FreelancerDashboard() {
   const [projects, setProjects] = useState([]);
@@ -14,12 +15,23 @@ export default function FreelancerDashboard() {
   const [loadingSuggestions, setLoadingSuggestions] = useState({});
 
   const loadProjects = async () => {
-    const res = await api.get("/projects/freelancer-dashboard");
-    setProjects(res.data.projects || []);
+    try {
+      const res = await api.get("/projects/freelancer-dashboard");
+      setProjects(res.data.projects || []);
+    } catch (err) {
+      console.error("Failed to load projects:", err);
+    }
   };
 
   useEffect(() => {
     loadProjects();
+    
+    // Auto-refresh every 10 seconds to detect deleted/updated projects
+    const interval = setInterval(() => {
+      loadProjects();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const toggleExpand = (id) => {
@@ -91,9 +103,19 @@ export default function FreelancerDashboard() {
       <Navbar />
 
       <div className="p-6 max-w-6xl mx-auto">
-        <h2 className="text-2xl font-bold mb-6">
-          Freelancer Dashboard
-        </h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">
+            Freelancer Dashboard
+          </h2>
+          <button
+            onClick={loadProjects}
+            className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition flex items-center gap-2"
+            title="Refresh projects"
+          >
+            <span>🔄</span>
+            <span>Refresh</span>
+          </button>
+        </div>
 
         {projects.length === 0 && (
           <p className="text-gray-400">No assigned projects yet</p>
@@ -159,6 +181,11 @@ export default function FreelancerDashboard() {
                         <div className="flex flex-col gap-1 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm">{req.text}</span>
+                            {req.verified && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-green-600/30 text-green-300" title="AI Verified">
+                                ✓ Verified
+                              </span>
+                            )}
                             {req.priority && (
                               <span
                                 className={`text-xs px-2 py-0.5 rounded ${
@@ -270,6 +297,8 @@ export default function FreelancerDashboard() {
                 </div>
               )}
 
+              <ProjectIntelligenceCard projectId={p._id} compact />
+
               {/* SUBMISSION */}
               {p.status !== "submitted" && p.status !== "completed" && (
                 <div className="space-y-2">
@@ -302,14 +331,87 @@ export default function FreelancerDashboard() {
 
               {/* SUBMISSION STATUS */}
               {p.status === "submitted" && (
-                <div className="bg-yellow-900/30 p-3 rounded border border-yellow-500/30">
-                  <p className="text-sm font-semibold text-yellow-300">
-                    ⏳ Submitted - Awaiting client review
-                  </p>
-                  {p.overallScore !== undefined && (
-                    <p className="text-xs text-gray-300 mt-1">
-                      AI Score: {p.overallScore}%
+                <div className="space-y-3">
+                  <div className="bg-yellow-900/30 p-3 rounded border border-yellow-500/30">
+                    <p className="text-sm font-semibold text-yellow-300">
+                      ⏳ Submitted - Awaiting client review
                     </p>
+                    {p.overallScore !== undefined && (
+                      <p className="text-xs text-gray-300 mt-1">
+                        AI Validation Score: {p.overallScore}%
+                      </p>
+                    )}
+                  </div>
+
+                  {/* AI VALIDATION DETAILS */}
+                  {p.validationReport && p.validationReport.length > 0 && (
+                    <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                      <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <span>🤖</span>
+                        <span>AI Validation Report</span>
+                      </h4>
+                      
+                      <div className="space-y-2 mb-3">
+                        {p.validationReport.map((report, idx) => (
+                          <div 
+                            key={idx}
+                            className={`p-2 rounded text-xs ${
+                              report.matched 
+                                ? "bg-green-900/30 border border-green-500/30" 
+                                : "bg-red-900/30 border border-red-500/30"
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <span>{report.matched ? "✅" : "❌"}</span>
+                              <div className="flex-1">
+                                <p className="font-medium">{report.requirement}</p>
+                                <p className="text-gray-400 mt-1">
+                                  {report.evidence || "No evidence found"}
+                                </p>
+                                <p className="text-gray-500 text-xs mt-0.5">
+                                  Confidence: {report.confidence}%
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {p.aiFeedback && (
+                        <div className="bg-blue-900/20 p-3 rounded border border-blue-500/20">
+                          <p className="text-xs font-semibold text-blue-300 mb-1">
+                            💬 Overall Feedback:
+                          </p>
+                          <p className="text-xs text-gray-300">{p.aiFeedback}</p>
+                        </div>
+                      )}
+
+                      {p.aiMissingItems && p.aiMissingItems.length > 0 && (
+                        <div className="bg-red-900/20 p-3 rounded border border-red-500/20 mt-2">
+                          <p className="text-xs font-semibold text-red-300 mb-1">
+                            ⚠️ Missing/Incomplete:
+                          </p>
+                          <ul className="text-xs text-gray-300 space-y-1">
+                            {p.aiMissingItems.map((item, idx) => (
+                              <li key={idx}>• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {p.aiStrengths && p.aiStrengths.length > 0 && (
+                        <div className="bg-green-900/20 p-3 rounded border border-green-500/20 mt-2">
+                          <p className="text-xs font-semibold text-green-300 mb-1">
+                            ✨ Strengths:
+                          </p>
+                          <ul className="text-xs text-gray-300 space-y-1">
+                            {p.aiStrengths.map((item, idx) => (
+                              <li key={idx}>• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}

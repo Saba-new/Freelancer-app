@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar";
 import api from "../services/api";
 import ChatBox from "../components/ChatBox";
 import MilestoneManager from "../components/MilestoneManager";
+import ProjectIntelligenceCard from "../components/ProjectIntelligenceCard";
 
 export default function ClientDashboard() {
   const [projects, setProjects] = useState([]);
@@ -17,6 +18,12 @@ export default function ClientDashboard() {
   // Preview Modal
   const [showPreview, setShowPreview] = useState(false);
   const [previewProject, setPreviewProject] = useState(null);
+  
+  // Add Requirement Modal
+  const [showAddRequirement, setShowAddRequirement] = useState(false);
+  const [newRequirementText, setNewRequirementText] = useState("");
+  const [newRequirementCategory, setNewRequirementCategory] = useState("other");
+  const [newRequirementPriority, setNewRequirementPriority] = useState("medium");
 
   const fetchDashboard = async () => {
     try {
@@ -40,6 +47,13 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     fetchDashboard();
+    
+    // Auto-refresh every 10 seconds to detect updates
+    const interval = setInterval(() => {
+      fetchDashboard();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, []);
 
   /* ================= CREATE PROJECT ================= */
@@ -68,9 +82,15 @@ export default function ClientDashboard() {
   /* ================= DELETE PROJECT ================= */
   const deleteProject = async (id) => {
     if (!window.confirm("Delete this project?")) return;
-    await api.delete(`/projects/${id}`);
-    setShowPreview(false);
-    fetchDashboard();
+    
+    try {
+      await api.delete(`/projects/${id}`);
+      alert("Project deleted successfully!");
+      setShowPreview(false);
+      await fetchDashboard();
+    } catch (err) {
+      alert("Failed to delete project: " + (err.response?.data?.message || err.message));
+    }
   };
 
   /* ================= OPEN PROJECT PREVIEW ================= */
@@ -92,6 +112,49 @@ export default function ClientDashboard() {
     alert("Payment released successfully");
     setShowPreview(false);
     fetchDashboard();
+  };
+
+  /* ================= ADD REQUIREMENT ================= */
+  const addRequirement = async () => {
+    if (!newRequirementText.trim()) {
+      return alert("Requirement text is required");
+    }
+
+    try {
+      await api.post(`/projects/${previewProject._id}/requirements`, {
+        text: newRequirementText,
+        category: newRequirementCategory,
+        priority: newRequirementPriority,
+      });
+      
+      setNewRequirementText("");
+      setNewRequirementCategory("other");
+      setNewRequirementPriority("medium");
+      setShowAddRequirement(false);
+      
+      // Refresh the project
+      const res = await api.get(`/projects/${previewProject._id}`);
+      setPreviewProject(res.data);
+      alert("Requirement added successfully!");
+    } catch (err) {
+      alert("Failed to add requirement: " + (err.response?.data?.message || err.message));
+    }
+  };
+
+  /* ================= DELETE REQUIREMENT ================= */
+  const deleteRequirement = async (reqId) => {
+    if (!window.confirm("Delete this requirement?")) return;
+
+    try {
+      await api.delete(`/projects/${previewProject._id}/requirements/${reqId}`);
+      
+      // Refresh the project
+      const res = await api.get(`/projects/${previewProject._id}`);
+      setPreviewProject(res.data);
+      alert("Requirement deleted!");
+    } catch (err) {
+      alert("Failed to delete requirement: " + (err.response?.data?.message || err.message));
+    }
   };
 
   if (loading) {
@@ -117,12 +180,22 @@ export default function ClientDashboard() {
         {/* HEADER */}
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold">Client Dashboard</h2>
-          <button
-            onClick={() => setShowNewProject(true)}
-            className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-semibold transition"
-          >
-            + New Project
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={fetchDashboard}
+              className="bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded-lg transition flex items-center gap-2"
+              title="Refresh projects"
+            >
+              <span>🔄</span>
+              <span>Refresh</span>
+            </button>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-semibold transition"
+            >
+              + New Project
+            </button>
+          </div>
         </div>
 
         {/* STATS BAR */}
@@ -239,13 +312,78 @@ export default function ClientDashboard() {
           {/* REQUIREMENTS LIST */}
           {previewProject.requirements && previewProject.requirements.length > 0 && (
             <div className="mt-4 bg-gray-800 p-4 rounded-lg">
-              <h4 className="font-semibold mb-3 text-lg flex items-center gap-2">
-                🎯 Project Requirements
-                <span className="text-sm text-gray-400">({previewProject.requirements.length} items)</span>
-              </h4>
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold text-lg flex items-center gap-2">
+                  🎯 Project Requirements
+                  <span className="text-sm text-gray-400">({previewProject.requirements.length} items)</span>
+                </h4>
+                {previewProject.status === "active" && (
+                  <button
+                    onClick={() => setShowAddRequirement(!showAddRequirement)}
+                    className="text-sm bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded"
+                  >
+                    + Add Requirement
+                  </button>
+                )}
+              </div>
+
+              {/* ADD REQUIREMENT FORM */}
+              {showAddRequirement && (
+                <div className="mb-4 bg-gray-700 p-3 rounded-lg space-y-2">
+                  <input
+                    className="input text-sm"
+                    placeholder="Requirement description"
+                    value={newRequirementText}
+                    onChange={(e) => setNewRequirementText(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      className="input text-sm flex-1"
+                      value={newRequirementCategory}
+                      onChange={(e) => setNewRequirementCategory(e.target.value)}
+                    >
+                      <option value="frontend">Frontend</option>
+                      <option value="backend">Backend</option>
+                      <option value="database">Database</option>
+                      <option value="authentication">Authentication</option>
+                      <option value="api">API</option>
+                      <option value="deployment">Deployment</option>
+                      <option value="testing">Testing</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <select
+                      className="input text-sm flex-1"
+                      value={newRequirementPriority}
+                      onChange={(e) => setNewRequirementPriority(e.target.value)}
+                    >
+                      <option value="high">High Priority</option>
+                      <option value="medium">Medium Priority</option>
+                      <option value="low">Low Priority</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={addRequirement}
+                      className="text-sm bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded flex-1"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddRequirement(false);
+                        setNewRequirementText("");
+                      }}
+                      className="text-sm bg-gray-600 hover:bg-gray-500 px-3 py-1.5 rounded flex-1"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <ul className="space-y-2">
                 {previewProject.requirements.map((req, i) => (
-                  <li key={i} className="flex items-start gap-2 p-2 bg-gray-700/50 rounded">
+                  <li key={req._id || i} className="flex items-start gap-2 p-2 bg-gray-700/50 rounded group">
                     <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                       req.status === "completed" ? "bg-green-600" :
                       req.status === "in-progress" ? "bg-yellow-600" :
@@ -256,18 +394,29 @@ export default function ClientDashboard() {
                     <span className="flex-1">{req.text}</span>
                     {req.priority && (
                       <span className={`text-xs px-2 py-0.5 rounded ${
-                        req.priority === "high" ? "bg-red-600/30" :
-                        req.priority === "medium" ? "bg-yellow-600/30" :
-                        "bg-blue-600/30"
+                        req.priority === "high" ? "bg-red-600/30 text-red-300" :
+                        req.priority === "medium" ? "bg-yellow-600/30 text-yellow-300" :
+                        "bg-blue-600/30 text-blue-300"
                       }`}>
                         {req.priority}
                       </span>
+                    )}
+                    {previewProject.status === "active" && (
+                      <button
+                        onClick={() => deleteRequirement(req._id)}
+                        className="text-red-400 hover:text-red-300 text-xs opacity-0 group-hover:opacity-100 transition"
+                        title="Delete requirement"
+                      >
+                        🗑️
+                      </button>
                     )}
                   </li>
                 ))}
               </ul>
             </div>
           )}
+
+          <ProjectIntelligenceCard projectId={previewProject._id} />
 
           {/* MILESTONE MANAGER */}
           <MilestoneManager project={previewProject} onUpdate={fetchDashboard} />

@@ -250,40 +250,131 @@ Return ONLY valid JSON.`;
 // Fallback functions when AI is unavailable
 
 function fallbackRequirements(description) {
-  const keywords = [
-    "authentication",
-    "dashboard",
-    "database",
-    "api",
-    "frontend",
-    "backend",
-    "payment",
-    "chat",
-  ];
-
   const text = description.toLowerCase();
   const requirements = [];
+  
+  // Enhanced keyword patterns with categories
+  const patterns = [
+    // Authentication
+    { keywords: ['login', 'signup', 'auth', 'authentication', 'user account', 'password', 'register'], 
+      text: 'Implement user authentication system', 
+      category: 'authentication', 
+      priority: 'high' },
+    
+    // Dashboard/UI
+    { keywords: ['dashboard', 'interface', 'ui', 'user interface', 'admin panel'], 
+      text: 'Build dashboard/admin interface', 
+      category: 'frontend', 
+      priority: 'high' },
+    
+    // Database
+    { keywords: ['database', 'mongodb', 'mysql', 'postgres', 'data storage', 'schema'], 
+      text: 'Set up database and data models', 
+      category: 'database', 
+      priority: 'high' },
+    
+    // API
+    { keywords: ['api', 'rest api', 'endpoint', 'backend api', 'routes'], 
+      text: 'Develop REST API endpoints', 
+      category: 'api', 
+      priority: 'high' },
+    
+    // Frontend Features
+    { keywords: ['frontend', 'react', 'vue', 'angular', 'responsive', 'ui components'], 
+      text: 'Create responsive frontend interface', 
+      category: 'frontend', 
+      priority: 'medium' },
+    
+    // Backend Logic
+    { keywords: ['backend', 'server', 'business logic', 'node', 'express'], 
+      text: 'Implement backend business logic', 
+      category: 'backend', 
+      priority: 'medium' },
+    
+    // Payment
+    { keywords: ['payment', 'stripe', 'paypal', 'transaction', 'checkout'], 
+      text: 'Integrate payment processing', 
+      category: 'api', 
+      priority: 'medium' },
+    
+    // Chat/Messaging
+    { keywords: ['chat', 'messaging', 'real-time', 'socket', 'websocket'], 
+      text: 'Implement real-time chat/messaging', 
+      category: 'api', 
+      priority: 'medium' },
+    
+    // File Upload
+    { keywords: ['upload', 'file upload', 'image upload', 'cloudinary', 'storage'], 
+      text: 'Add file upload functionality', 
+      category: 'backend', 
+      priority: 'low' },
+    
+    // Deployment
+    { keywords: ['deploy', 'deployment', 'hosting', 'production', 'server'], 
+      text: 'Deploy application to production', 
+      category: 'deployment', 
+      priority: 'low' },
+    
+    // Testing
+    { keywords: ['test', 'testing', 'unit test', 'integration test'], 
+      text: 'Write tests for key features', 
+      category: 'testing', 
+      priority: 'low' },
+  ];
 
-  keywords.forEach(keyword => {
-    if (text.includes(keyword)) {
+  // Check for each pattern
+  patterns.forEach(pattern => {
+    if (pattern.keywords.some(keyword => text.includes(keyword))) {
+      // Avoid duplicates
+      if (!requirements.some(r => r.text === pattern.text)) {
+        requirements.push({
+          text: pattern.text,
+          category: pattern.category,
+          priority: pattern.priority,
+          status: "pending",
+          verified: false,
+        });
+      }
+    }
+  });
+
+  // If no specific requirements found, extract from description length and complexity
+  if (requirements.length === 0) {
+    if (text.length > 200) {
+      // Longer description - likely complex project
+      requirements.push(
+        {
+          text: "Complete core functionality as described",
+          category: "other",
+          priority: "high",
+          status: "pending",
+          verified: false,
+        },
+        {
+          text: "Implement user interface",
+          category: "frontend",
+          priority: "medium",
+          status: "pending",
+          verified: false,
+        },
+        {
+          text: "Set up backend logic",
+          category: "backend",
+          priority: "medium",
+          status: "pending",
+          verified: false,
+        }
+      );
+    } else {
+      // Short description - keep it simple
       requirements.push({
-        text: `Implement ${keyword} functionality`,
+        text: "Complete project as described",
         category: "other",
-        priority: "medium",
+        priority: "high",
         status: "pending",
         verified: false,
       });
     }
-  });
-
-  if (requirements.length === 0) {
-    requirements.push({
-      text: "Complete project as described",
-      category: "other",
-      priority: "high",
-      status: "pending",
-      verified: false,
-    });
   }
 
   return requirements;
